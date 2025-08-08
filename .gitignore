@@ -1,0 +1,38 @@
+# Composer vendor directory
+/vendor/
+
+# Composer lock file (optional for libraries)
+composer.lock
+
+# IDEs & Editors
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/storage/logs/
+logs/
+*.tmp
+
+# PHPUnit / test artifacts
+.phpunit.result.cache
+coverage/
+build/
+
+# Cache files
+.cache/
+tmp/
+*.cache
+
+# Node (if you ever use npm/yarn in examples)
+node_modules/
+
+# Env & secrets
+.env
+.env.*
