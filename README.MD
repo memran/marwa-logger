@@ -1,5 +1,10 @@
 # memran/marwa-logger
 
+[![Latest Version](https://img.shields.io/packagist/v/memran/marwa-logger.svg?style=flat-square)](https://packagist.org/packages/memran/marwa-logger)
+[![Total Downloads](https://img.shields.io/packagist/dt/memran/marwa-logger.svg?style=flat-square)](https://packagist.org/packages/memran/marwa-logger)
+[![License](https://img.shields.io/packagist/l/memran/marwa-logger.svg?style=flat-square)](https://packagist.org/packages/memran/marwa-logger)
+[![PHP Version](https://img.shields.io/packagist/php-v/memran/marwa-logger.svg?style=flat-square)](https://php.net)
+
 A tiny, fast **PSR-3** logger that writes **JSON lines (NDJSON)**, with:
 
 - ✅ **Sensitive-data filtering** (recursive, configurable keys)
