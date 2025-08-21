@@ -1,16 +1,14 @@
 <?php
-
 declare(strict_types=1);
 
-namespace Marwa\Logging\Contracts;
+namespace Marwa\Logger\Contracts;
 
-/**
- * Abstraction for log storage (file today; Kafka/DB later).
- */
 interface SinkInterface
 {
     /**
-     * Persist a formatted record. Implementations must be fast and robust.
+     * Append a formatted string (e.g., JSON line) to storage.
+     * @param string $formatted One record (already formatted) + newline if needed
+     * @param string $dateSuffix Date suffix for file naming (e.g., '2025-08-21')
      */
-    public function write(string $formatted, string $dateSuffix = ''): void;
+    public function write(string $formatted, string $dateSuffix): void;
 }

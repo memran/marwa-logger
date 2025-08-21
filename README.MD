@@ -1,116 +1,63 @@
 # memran/marwa-logger
 
-A **PSR-3 compliant**, Laravel-style, dynamic, and configurable logging library for PHP.  
-It automatically handles error & exception logging behind the scenes, with environment-based behavior for development and production.
+A tiny, fast **PSR-3** logger that writes **JSON lines (NDJSON)**, with:
 
----
+- ✅ **Sensitive-data filtering** (recursive, configurable keys)
+- ✅ **Pluggable storage** via `SinkInterface` (File sink now; Kafka/DB-ready)
+- ✅ **Date + size rotation** (e.g. `myapp-YYYY-MM-DD.log`, rolls when `max_bytes` hit)
+- ✅ **Dev vs Prod** behavior (prod ignores “user-origin” logs unless `['_origin'=>'system']`)
 
-## ✨ Features
-
-- **PSR-3 Compliant** — Works with any PSR-3 logger consumers.
-- **Laravel-style Exception Reporting** — `dontReport`, `reportable`, and `fallback` handlers.
-- **Dynamic Storage** — File, Database (PSR-6 Cache/DB), Kafka (future extension).
-- **Sensitive Data Filtering** — Automatically masks keys like `password`, `token`.
-- **Environment Auto-config** — Dev mode logs all; Prod mode logs only system-origin events.
-- **Custom JSON Log Format** — Developer-friendly and machine-parseable.
-- **Detailed Context Capture** — Request data, environment, trace, and more.
-- **Log Rotation** — Date-based filenames, size-based rollover.
-- **Symfony Filesystem Support** — Safe, atomic writes.
-- **Future-Ready** — Easy to extend to Kafka streams for real-time debugging.
-
----
-
-## 📦 Installation
+## Install
 
 ```bash
 composer require memran/marwa-logger
 ```
 
----
+# Quick Example
 
-## 🚀 Quick Start
+```bash
+use Marwa\Logger\SimpleLogger;
+use Marwa\Logger\Support\SensitiveDataFilter;
+use Marwa\Logger\Storage\StorageFactory;
 
-```php
-use Marwa\Logging\ErrorHandler;
-
-$handler = ErrorHandler::bootstrap([
-    'app_name'       => 'myapp',
-    'env'            => 'development',   // or 'production'
-    'log_path'       => __DIR__ . '/storage/logs',
-    'max_log_bytes'  => '10MB',
-    'sensitive_keys' => ['password', 'token', 'authorization'],
+$filter = new SensitiveDataFilter(['password','token','authorization']);
+$sink   = StorageFactory::make([
+  'driver'    => 'file',
+  'path'      => __DIR__.'/storage/logs',
+  'prefix'    => 'myapp',
+  'max_bytes' => '10MB',
 ]);
 
-// Enable Laravel-style reporter
-$handler->enableExceptionReporter();
+$logger = new SimpleLogger(
+  appName: 'myapp',
+  env: 'production',
+  sink: $sink,
+  filter: $filter,
+  logging: true               // true in development
+);
 
-// Get the logger (manual logging)
-$logger = $handler->getLogger();
-$logger->info('User action', ['user_id' => 123]);
+// Prod ignores user-origin logs:
+$logger->info('clicked', ['user_id'=>1]);                         // ignored (user-origin)
+$logger->error('cache_miss', ['_origin'=>'system','key'=>'user']); // logged
 ```
 
----
+# Example Usage
+```bash
+<?php
 
-## 📜 Manual Logging
+require __DIR__ . '/../vendor/autoload.php';
 
-Since the logger is PSR-3 compliant, you can use:
+use Marwa\Logger\Logger;
 
-```php
-$logger->emergency($message, $context);
-$logger->alert($message, $context);
-$logger->critical($message, $context);
-$logger->error($message, $context);
-$logger->warning($message, $context);
-$logger->notice($message, $context);
-$logger->info($message, $context);
-$logger->debug($message, $context);
+// Boot logger (env auto-detected from APP_ENV or defaults to dev)
+$logger = Logger::boot('my-app');
+
+// Write logs
+$logger->info("Application started", ['env' => getenv('APP_ENV')]);
+$logger->error("Critical failure", ['exception' => 'RuntimeException']);
+
+// Or use init() alias
+$logger = Logger::init('payments', 'prod');
+$logger->warning("Payment delayed", ['user_id' => 42]);
+
 ```
-
----
-
-## 🛠 Laravel-Style Exception Reporting
-
-```php
-$reporter = $handler->getReporter();
-
-// Ignore specific exceptions
-$reporter->dontReport([\InvalidArgumentException::class]);
-
-// Custom handling for specific types
-$reporter->reportable(\RuntimeException::class, function ($e, $logger) {
-    $logger->critical('Runtime failure', ['message' => $e->getMessage()]);
-});
-
-// Fallback handler
-$reporter->fallback(function ($e, $logger) {
-    $logger->alert('Unhandled exception', ['type' => get_class($e)]);
-});
-```
-
----
-
-## ⚙ Settings
-
-You can pass an array of options to `ErrorHandler::bootstrap()`:
-
-| Key              | Type     | Default        | Description                       |
-| ---------------- | -------- | -------------- | --------------------------------- |
-| `app_name`       | string   | `app`          | Application name prefix for logs  |
-| `env`            | string   | `production`   | `development` or `production`     |
-| `log_path`       | string   | `storage/logs` | Directory for log files           |
-| `max_log_bytes`  | string   | `5MB`          | Max log file size before rotation |
-| `sensitive_keys` | string[] | `[]`           | Keys to mask in logs              |
-
----
-
-## 📄 License
-
-This library is open-sourced software licensed under the [MIT license](LICENSE).
-
----
-
-## 📬 Future Plans
-
-- Kafka integration for real-time log streaming
-- Web panel log viewer with filtering/search
-- Database + cache log storage

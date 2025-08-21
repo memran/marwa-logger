@@ -1,22 +1,32 @@
 <?php
-
 declare(strict_types=1);
 
-namespace Marwa\Logging\Support;
+namespace Marwa\Logger\Support;
 
-/**
- * Sanitizes arrays and superglobals based on sensitive key list.
- */
 final class SensitiveDataFilter
 {
-    /** @param array<int,string> $keys */
-    public function __construct(private readonly array $keys) {}
+    /** @var array<int,string> */
+    private array $keys;
+
+    /**
+     * @param array<int,string> $keys e.g. ['password','token','authorization']
+     */
+    public function __construct(array $keys = [])
+    {
+        $default = [
+            'password','passwd','pass','secret','token','api_key','apikey',
+            'authorization','cookie','set-cookie','access_token','refresh_token',
+            'credit_card','cc','ssn','nid','pin','otp','private_key','client_secret',
+        ];
+        $keys = $keys ?: $default;
+        $this->keys = array_values(array_unique(array_map('strtolower', $keys)));
+    }
 
     /**
      * @param array<string,mixed> $data
      * @return array<string,mixed>
      */
-    public function scrubArray(array $data): array
+    public function scrub(array $data): array
     {
         $out = [];
         foreach ($data as $k => $v) {
@@ -26,54 +36,17 @@ final class SensitiveDataFilter
                 continue;
             }
             if (is_array($v)) {
-                $out[$k] = $this->scrubArray($v);
+                $out[$k] = $this->scrub($v);
             } elseif (is_object($v)) {
-                $out[$k] = sprintf('[object %s]', $v::class);
+                $out[$k] = '[object ' . $v::class . ']';
             } elseif (is_resource($v)) {
                 $out[$k] = '[resource]';
             } else {
-                $out[$k] = $this->truncateIfHuge($v);
+                $out[$k] = (is_string($v) && strlen($v) > 16000)
+                    ? (substr($v, 0, 16000) . '... [truncated]')
+                    : $v;
             }
         }
         return $out;
-    }
-
-    /**
-     * @return array<string,mixed>
-     */
-    public function scrubSuperglobals(): array
-    {
-        $server = $_SERVER ?? [];
-        $bodySnippet = null;
-
-        if (isset($server['REQUEST_METHOD']) && strtoupper((string)$server['REQUEST_METHOD']) !== 'GET') {
-            $raw = @file_get_contents('php://input');
-            if (is_string($raw) && $raw !== '') {
-                $bodySnippet = substr($raw, 0, 4000) . (strlen($raw) > 4000 ? '... [truncated]' : '');
-            }
-        }
-
-        return [
-            '_GET'     => $this->scrubArray($_GET   ?? []),
-            '_POST'    => $this->scrubArray($_POST  ?? []),
-            '_COOKIE'  => $this->scrubArray($_COOKIE ?? []),
-            '_SERVER'  => [
-                'REQUEST_METHOD' => $server['REQUEST_METHOD'] ?? null,
-                'REQUEST_URI'    => $server['REQUEST_URI'] ?? null,
-                'HTTP_HOST'      => $server['HTTP_HOST'] ?? null,
-                'REMOTE_ADDR'    => $server['REMOTE_ADDR'] ?? null,
-                'USER_AGENT'     => $server['HTTP_USER_AGENT'] ?? null,
-                'QUERY_STRING'   => $server['QUERY_STRING'] ?? null,
-            ],
-            'body_snippet' => $bodySnippet,
-        ];
-    }
-
-    private function truncateIfHuge(mixed $v): mixed
-    {
-        if (is_string($v) && strlen($v) > 16000) {
-            return substr($v, 0, 16000) . '... [truncated]';
-        }
-        return $v;
     }
 }
