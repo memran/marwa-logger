@@ -24,22 +24,37 @@ composer require memran/marwa-logger
 use Marwa\Logger\SimpleLogger;
 use Marwa\Logger\Support\SensitiveDataFilter;
 use Marwa\Logger\Storage\StorageFactory;
+use Psr\Log\LogLevel;
 
-$filter = new SensitiveDataFilter(['password','token','authorization']);
-$sink   = StorageFactory::make([
-  'driver'    => 'file',
-  'path'      => __DIR__.'/storage/logs',
-  'prefix'    => 'myapp',
-  'max_bytes' => '10MB',
+$logDir = __DIR__ . '/storage/logs';
+if (!is_dir($logDir)) {
+    @mkdir($logDir, 0775, true);
+}
+
+$sink = StorageFactory::make([
+    'driver'    => 'file',
+    'path'      => $logDir,
+    'prefix'    => 'myapp',
+    'max_bytes' => '10MB',
 ]);
 
 $logger = new SimpleLogger(
-  appName: 'myapp',
-  env: 'production',
-  sink: $sink,
-  filter: $filter,
-  logging: true               // true in development
+    appName: 'myapp',
+    env: 'production',
+    sink: $sink,
+    filter: new SensitiveDataFilter(),
+    logging: true,                         // turn on logging
+    productionMinLevel: LogLevel::ERROR    // only ERROR and above
 );
+
+// ignored: user-origin in prod
+$logger->info('user clicked', ['_origin' => 'user']);
+
+// ignored: system but too low (warning < error)
+$logger->warning('slow_query', ['_origin' => 'system']);
+
+// logged: system + error
+$logger->error('db_connect_failed', ['_origin' => 'system', 'dsn' => 'mysql:...']);
 
 // Prod ignores user-origin logs:
 $logger->info('clicked', ['user_id'=>1]);                         // ignored (user-origin)
@@ -47,6 +62,7 @@ $logger->error('cache_miss', ['_origin'=>'system','key'=>'user']); // logged
 ```
 
 # Example Usage
+
 ```bash
 <?php
 
