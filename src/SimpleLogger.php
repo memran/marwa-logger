@@ -8,11 +8,14 @@ use Marwa\Logger\Contracts\SinkInterface;
 use Marwa\Logger\Support\SensitiveDataFilter;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
+use Stringable;
 
 final class SimpleLogger implements LoggerInterface
 {
     /** @var string|null */
     private ?string $requestId = null;
+
+    private const ENV_PRODUCTION = 'production';
 
     /** @var array<string,int> */
     private const LEVEL_ORDER = [
@@ -34,7 +37,10 @@ final class SimpleLogger implements LoggerInterface
         private bool $logging = false,
         private string $productionMinLevel = LogLevel::ERROR // log only from this level ↑ in prod
     ) {
+        $this->env = self::normalizeEnv($this->env);
+
         // safety: if someone passes invalid level name
+        $this->productionMinLevel = strtolower($this->productionMinLevel);
         if (!isset(self::LEVEL_ORDER[$this->productionMinLevel])) {
             $this->productionMinLevel = LogLevel::ERROR;
         }
@@ -49,48 +55,53 @@ final class SimpleLogger implements LoggerInterface
         $this->requestId = $requestId !== '' ? $requestId : null;
     }
 
-    public function emergency($m, array $c = []): void
+    public function emergency(string|Stringable $m, array $c = []): void
     {
         $this->log(LogLevel::EMERGENCY, (string)$m, $c);
     }
-    public function alert($m, array $c = []): void
+    public function alert(string|Stringable $m, array $c = []): void
     {
         $this->log(LogLevel::ALERT,     (string)$m, $c);
     }
-    public function critical($m, array $c = []): void
+    public function critical(string|Stringable $m, array $c = []): void
     {
         $this->log(LogLevel::CRITICAL,  (string)$m, $c);
     }
-    public function error($m, array $c = []): void
+    public function error(string|Stringable $m, array $c = []): void
     {
         $this->log(LogLevel::ERROR,     (string)$m, $c);
     }
-    public function warning($m, array $c = []): void
+    public function warning(string|Stringable $m, array $c = []): void
     {
         $this->log(LogLevel::WARNING,   (string)$m, $c);
     }
-    public function notice($m, array $c = []): void
+    public function notice(string|Stringable $m, array $c = []): void
     {
         $this->log(LogLevel::NOTICE,    (string)$m, $c);
     }
-    public function info($m, array $c = []): void
+    public function info(string|Stringable $m, array $c = []): void
     {
         $this->log(LogLevel::INFO,      (string)$m, $c);
     }
-    public function debug($m, array $c = []): void
+    public function debug(string|Stringable $m, array $c = []): void
     {
         $this->log(LogLevel::DEBUG,     (string)$m, $c);
     }
 
-    public function log($level, $message, array $context = []): void
+    public function log($level, string|Stringable $message, array $context = []): void
     {
+        $level = strtolower((string) $level);
+        if (!isset(self::LEVEL_ORDER[$level])) {
+            throw new \InvalidArgumentException(sprintf('Unsupported log level "%s".', (string) $level));
+        }
+
         // 1) logging switch
         if ($this->logging === false) {
             return;
         }
 
         // 2) production rules
-        if ($this->env === 'production') {
+        if ($this->env === self::ENV_PRODUCTION) {
             // only system-origin
             if (($context['_origin'] ?? 'user') === 'user') {
                 return;
@@ -102,7 +113,7 @@ final class SimpleLogger implements LoggerInterface
             }
         }
 
-        $server = $_SERVER ?? [];
+        $server = $_SERVER;
 
         // final request id priority:
         // 1) context['request_id']
@@ -132,7 +143,7 @@ final class SimpleLogger implements LoggerInterface
             'context'    => $this->filter->scrub($context),
         ];
 
-        $json = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+        $json = $this->encodeRecord($record) . PHP_EOL;
         $this->sink->write($json, gmdate('Y-m-d'));
     }
 
@@ -156,5 +167,62 @@ final class SimpleLogger implements LoggerInterface
         $min  = self::LEVEL_ORDER[$this->productionMinLevel];
         // lower number = higher severity
         return $curr <= $min;
+    }
+
+    /**
+     * @param array<string,mixed> $record
+     */
+    private function encodeRecord(array $record): string
+    {
+        try {
+            return json_encode(
+                $record,
+                JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            );
+        } catch (\JsonException) {
+            $sanitized = $this->sanitizeForJson($record);
+
+            try {
+                return json_encode(
+                    $sanitized,
+                    JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+                );
+            } catch (\JsonException $e) {
+                throw new \RuntimeException('Unable to encode log record as JSON.', 0, $e);
+            }
+        }
+    }
+
+    private static function normalizeEnv(string $env): string
+    {
+        return match (strtolower(trim($env))) {
+            'prod', 'production', 'live' => self::ENV_PRODUCTION,
+            default => strtolower(trim($env)),
+        };
+    }
+
+    /**
+     * @param mixed $value
+     * @return mixed
+     */
+    private function sanitizeForJson(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            $sanitized = [];
+            foreach ($value as $key => $item) {
+                $sanitized[$key] = $this->sanitizeForJson($item);
+            }
+
+            return $sanitized;
+        }
+
+        if (is_string($value) && !preg_match('//u', $value)) {
+            $hex = substr(bin2hex($value), 0, 64);
+            $suffix = strlen($value) > 32 ? '...' : '';
+
+            return sprintf('[invalid utf-8:%s%s]', $hex, $suffix);
+        }
+
+        return $value;
     }
 }

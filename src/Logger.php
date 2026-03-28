@@ -21,7 +21,6 @@ final class Logger
      *
      * @param string|null $channel
      * @param string|null $env
-     * @param LogFormatterInterface|null $formatter
      * @return \Marwa\Logger\SimpleLogger
      */
     public static function boot(
@@ -32,13 +31,15 @@ final class Logger
     ): SimpleLogger {
         // Detect environment (default: dev)
         $env = $env ?? getenv('APP_ENV') ?: 'dev';
+        $channel = $channel ?: 'app';
+        $path = $path ?: (getcwd() . '/storage/logs');
 
         $filter = new SensitiveDataFilter();
         $sink   = StorageFactory::make([
             'driver'    => 'file',
-            'path'      => $path ?? getcwd() . '/storage/logs',
-            'prefix'    => $channel ?? 'myapp',
-            'max_bytes' => $size ?? '10MB',
+            'path'      => $path,
+            'prefix'    => $channel,
+            'max_bytes' => $size,
         ]);
         return new SimpleLogger(
             appName: $channel,

@@ -1,41 +1,62 @@
 # memran/marwa-logger
 
-[![Latest Version](https://img.shields.io/packagist/v/memran/marwa-logger.svg?style=flat-square)](https://packagist.org/packages/memran/marwa-logger)
-[![Total Downloads](https://img.shields.io/packagist/dt/memran/marwa-logger.svg?style=flat-square)](https://packagist.org/packages/memran/marwa-logger)
-[![License](https://img.shields.io/packagist/l/memran/marwa-logger.svg?style=flat-square)](https://packagist.org/packages/memran/marwa-logger)
-[![PHP Version](https://img.shields.io/packagist/php-v/memran/marwa-logger.svg?style=flat-square)](https://php.net)
+A small PSR-3 logger for PHP 8.1+ that writes newline-delimited JSON, filters sensitive context data, and rotates files by size with optional retention cleanup.
 
-A tiny, fast **PSR-3** logger that writes **JSON lines (NDJSON)**, with:
+## Features
 
-- ✅ **Sensitive-data filtering** (recursive, configurable keys)
-- ✅ **Pluggable storage** via `SinkInterface` (File sink now; Kafka/DB-ready)
-- ✅ **Date + size rotation** (e.g. `myapp-YYYY-MM-DD.log`, rolls when `max_bytes` hit)
-- ✅ **Dev vs Prod** behavior (prod ignores “user-origin” logs unless `['_origin'=>'system']`)
+- PSR-3 compatible `SimpleLogger`
+- NDJSON output for easy ingestion by log processors
+- Recursive sensitive-data filtering
+- Production gating by log level and request origin
+- File rotation by size
+- Optional retention by age and file count
+- Composer scripts, PHPUnit, PHPStan, and CI included
 
-## Install
+## Installation
 
 ```bash
 composer require memran/marwa-logger
 ```
 
-# Quick Example
+## Quick Start
 
-```bash
+```php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+use Marwa\Logger\Logger;
+
+$logger = Logger::boot(
+    channel: 'payments',
+    env: 'prod',
+    path: __DIR__ . '/storage/logs',
+    size: '10MB',
+);
+
+$logger->info('checkout_started', ['user_id' => 42]);
+$logger->error('payment_failed', ['_origin' => 'system', 'order_id' => 991]);
+```
+
+`Logger::boot()` defaults to `APP_ENV` and `storage/logs` when `env` and `path` are omitted.
+
+## Advanced File Sink Configuration
+
+Use `StorageFactory` when you need retention controls:
+
+```php
 use Marwa\Logger\SimpleLogger;
-use Marwa\Logger\Support\SensitiveDataFilter;
 use Marwa\Logger\Storage\StorageFactory;
+use Marwa\Logger\Support\SensitiveDataFilter;
 use Psr\Log\LogLevel;
 
-$logDir = __DIR__ . '/storage/logs';
-if (!is_dir($logDir)) {
-    @mkdir($logDir, 0775, true);
-}
-
 $sink = StorageFactory::make([
-    'driver'    => 'file',
-    'path'      => $logDir,
-    'prefix'    => 'myapp',
+    'driver' => 'file',
+    'path' => __DIR__ . '/storage/logs',
+    'prefix' => 'myapp',
     'max_bytes' => '10MB',
+    'retention_days' => 7,
+    'max_files' => 30,
 ]);
 
 $logger = new SimpleLogger(
@@ -43,42 +64,32 @@ $logger = new SimpleLogger(
     env: 'production',
     sink: $sink,
     filter: new SensitiveDataFilter(),
-    logging: true,                         // turn on logging
-    productionMinLevel: LogLevel::ERROR    // only ERROR and above
+    logging: true,
+    productionMinLevel: LogLevel::ERROR,
 );
-
-// ignored: user-origin in prod
-$logger->info('user clicked', ['_origin' => 'user']);
-
-// ignored: system but too low (warning < error)
-$logger->warning('slow_query', ['_origin' => 'system']);
-
-// logged: system + error
-$logger->error('db_connect_failed', ['_origin' => 'system', 'dsn' => 'mysql:...']);
-
-// Prod ignores user-origin logs:
-$logger->info('clicked', ['user_id'=>1]);                         // ignored (user-origin)
-$logger->error('cache_miss', ['_origin'=>'system','key'=>'user']); // logged
 ```
 
-# Example Usage
+## Runtime Behavior
+
+In `production` or `prod`, user-origin logs are skipped unless `['_origin' => 'system']` is set. Levels below `productionMinLevel` are ignored. Sensitive keys such as `password`, `token`, `authorization`, and `client_secret` are redacted recursively.
+
+Log records include timestamps, request metadata, PHP runtime details, message text, request IDs, and scrubbed context. Invalid UTF-8 is sanitized before encoding so log writes do not silently fail.
+
+## File Rotation and Retention
+
+Active files use the pattern `prefix-YYYY-MM-DD.log`. When `max_bytes` is exceeded, the current file is renamed to `prefix-YYYY-MM-DD_HHMMSS-<token>.log` and a fresh active file is created. If configured, `retention_days` deletes expired matching files and `max_files` keeps only the newest matching log files.
+
+## Error Handling
+
+The file sink throws `RuntimeException` when it cannot create the log directory, rotate a file, or append a record. Treat these as operational failures and surface them in deployment monitoring.
+
+## Development
 
 ```bash
-<?php
-
-require __DIR__ . '/../vendor/autoload.php';
-
-use Marwa\Logger\Logger;
-
-// Boot logger (env auto-detected from APP_ENV or defaults to dev)
-$logger = Logger::boot('my-app');
-
-// Write logs
-$logger->info("Application started", ['env' => getenv('APP_ENV')]);
-$logger->error("Critical failure", ['exception' => 'RuntimeException']);
-
-// Or use init() alias
-$logger = Logger::init('payments', 'prod');
-$logger->warning("Payment delayed", ['user_id' => 42]);
-
+composer lint
+composer analyze
+composer test
+composer check
 ```
+
+`composer check` runs syntax checks, PHPStan 2.x, and PHPUnit.

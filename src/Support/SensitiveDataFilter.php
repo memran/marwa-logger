@@ -5,7 +5,7 @@ namespace Marwa\Logger\Support;
 
 final class SensitiveDataFilter
 {
-    /** @var array<int,string> */
+    /** @var array<string,true> */
     private array $keys;
 
     /**
@@ -19,7 +19,8 @@ final class SensitiveDataFilter
             'credit_card','cc','ssn','nid','pin','otp','private_key','client_secret',
         ];
         $keys = $keys ?: $default;
-        $this->keys = array_values(array_unique(array_map('strtolower', $keys)));
+        $normalized = array_unique(array_map('strtolower', $keys));
+        $this->keys = array_fill_keys($normalized, true);
     }
 
     /**
@@ -31,7 +32,7 @@ final class SensitiveDataFilter
         $out = [];
         foreach ($data as $k => $v) {
             $lk = strtolower((string)$k);
-            if (in_array($lk, $this->keys, true)) {
+            if (isset($this->keys[$lk])) {
                 $out[$k] = '[redacted]';
                 continue;
             }

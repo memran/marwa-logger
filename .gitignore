@@ -22,11 +22,13 @@ logs/
 
 # PHPUnit / test artifacts
 .phpunit.result.cache
+.phpunit.cache/
 coverage/
 build/
 
 # Cache files
 .cache/
+.phpstan/
 tmp/
 *.cache
 
