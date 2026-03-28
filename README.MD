@@ -1,12 +1,14 @@
-# memran/marwa-logger
+# Marwa Logger
 
+![Packagist Version](https://img.shields.io/packagist/v/memran/marwa-logger?logo=composer&logoColor=white)
+![Packagist Downloads](https://img.shields.io/packagist/dt/memran/marwa-logger?logo=composer&logoColor=white)
 ![PHP](https://img.shields.io/badge/PHP-8.1%2B-777BB4?logo=php&logoColor=white)
 ![PSR-3](https://img.shields.io/badge/PSR--3-compatible-0A7B83)
 ![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
 ![PHPStan](https://img.shields.io/badge/PHPStan-2.x-231F20)
 ![PHPUnit](https://img.shields.io/badge/PHPUnit-10.5-3C873A)
 
-A small PSR-3 logger for PHP 8.1+ that writes newline-delimited JSON, filters sensitive context data, and rotates files by size with optional retention cleanup.
+Lightweight PSR-3 JSON logger for PHP 8.1+ with sensitive-data redaction, file rotation, and retention cleanup.
 
 ## Features
 

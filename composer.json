@@ -1,6 +1,6 @@
 {
   "name": "memran/marwa-logger",
-  "description": "PSR-3 JSON logger with sensitive-data filtering and pluggable storage (file; Kafka/DB-ready).",
+  "description": "Lightweight PSR-3 JSON logger for PHP with redaction, rotation, and retention.",
   "type": "library",
   "license": "MIT",
   "autoload": {
